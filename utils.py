@@ -70,7 +70,7 @@ def build_network(m, n, d, N):
                 x = layer(x)
             else:
                 nodes = m
-                layer = keras.layers.Dense(nodes, activation='sigmoid', trainable=trainable,
+                layer = keras.layers.Dense(nodes, activation='linear', trainable=trainable,
                               kernel_initializer=keras.initializers.RandomNormal(0,0.1),#kernel_initializer='random_normal',
                               bias_initializer='random_normal',
                               name=str(j) + 'step' + str(i) + 'layer')
