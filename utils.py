@@ -19,32 +19,95 @@ def BlackScholes(tau, S, K, sigma, option_type):
         hedge_strategy = gamma
     return price, hedge_strategy
 
+import QuantLib as ql
 
+def simulate_Heston(m,Ktrain,N,T,rho,kappa,theta,sigma,S0,v0):
+    v0 = theta # historical vols for the stock  
+
+    day_count = ql.Actual365Fixed()
+    calculation_date = ql.Date(1, 10, 2020)
+    spot_price = 1.00
+    # ql.Settings.instance().evaluationDate = calculation_date
+
+    # construct the yield curve
+    dividend_rate =  0
+    risk_free_rate = 0
+    flat_ts = ql.YieldTermStructureHandle(
+        ql.FlatForward(calculation_date, risk_free_rate, day_count)
+    )
+    dividend_yield = ql.YieldTermStructureHandle(
+        ql.FlatForward(calculation_date, dividend_rate, day_count)
+    )
+
+    # set the spot price
+    spot_handle = ql.QuoteHandle(
+        ql.SimpleQuote(spot_price)
+    )
+
+    # calculate option price
+    heston_process = ql.HestonProcess(
+    flat_ts, dividend_yield, spot_handle,
+    v0, kappa, theta, sigma, rho
+    )
+
+
+    timestep = N
+    length = T
+    times = ql.TimeGrid(length, timestep)
+    dimension = heston_process.factors()
+
+    rng = ql.UniformRandomSequenceGenerator(dimension * timestep, ql.UniformRandomGenerator())
+    sequenceGenerator = ql.GaussianRandomSequenceGenerator(rng)
+    pathGenerator = ql.GaussianMultiPathGenerator(heston_process, list(times), sequenceGenerator, False)
+
+    # paths[0] will contain spot paths, paths[1] will contain vol paths
+    paths = [[] for i in range(dimension)]
+    for i in range(Ktrain):
+        samplePath = pathGenerator.next()
+        values = samplePath.value()
+        spot = values[0]
+
+        for j in range(dimension):
+            paths[j].append([x for x in values[j]])
+
+
+    price_path, vol_path = np.array(paths)[0,:,:], np.array(paths)[1,:,:]
+    price_path = price_path[:,:,None]
+    vol_path = vol_path[:,:,None]
 
 
     
-def stimulate_Heston(m,Ktrain,N,T,corr,kappa,theta,xi,S0,v0):
-    S = [S0]
-    v = [v0]
-    v_curr = v0; S_curr = S0
-    for i in range(N):
-        # Simulate standard normal random variables
-        Z1_i = np.random.normal(0,1,(Ktrain,m))
-        Z2_i = np.random.normal(0,1,(Ktrain,m))
-        # Generate correlated Brownian motions
-        WS_curr = np.sqrt(T/N)*Z1_i
-        Wv_curr = np.sqrt(T/N)*(corr*Z1_i + np.sqrt(1-corr**2)*Z2_i)
-        # Calculate volatility and stock price
-        # Adjustment: np.abs(v_curr) for np.sqrt() in the last term
-#         v_new = v_curr + kappa*(theta-v_curr)*T/N + xi*np.sqrt(np.abs(v_curr))*Wv_curr
-        v_new = v_curr + kappa*(theta-v_curr)*T/N + xi*np.sqrt(v_curr)*Wv_curr # without abs 
-        S_new = S_curr * np.exp(- v_new**2/2*T/N + v_new*WS_curr)
-        v_curr = v_new; S_curr = S_new
-        # Append the results to the arrays of each day's value
-        v += [v_new]; S += [S_new]
-        price_path = np.swapaxes(np.array(S),0,1)
-        vol_path = np.swapaxes(np.array(v),0,1)
     return price_path, vol_path
+
+
+
+
+
+
+
+
+# def stimulate_Heston(m,Ktrain,N,T,corr,kappa,theta,xi,S0,v0):
+#     S = [S0]
+#     v = [v0]
+#     v_curr = v0; S_curr = S0
+#     for i in range(N):
+#         # Simulate standard normal random variables
+#         Z1_i = np.random.normal(0,1,(Ktrain,m))
+#         Z2_i = np.random.normal(0,1,(Ktrain,m))
+#         # Generate correlated Brownian motions
+#         WS_curr = np.sqrt(T/N)*Z1_i
+#         Wv_curr = np.sqrt(T/N)*(corr*Z1_i + np.sqrt(1-corr**2)*Z2_i)
+#         # Calculate volatility and stock price
+#         # Adjustment: np.abs(v_curr) for np.sqrt() in the last term
+# #         v_new = v_curr + kappa*(theta-v_curr)*T/N + xi*np.sqrt(np.abs(v_curr))*Wv_curr
+#         v_new = v_curr + kappa*(theta-v_curr)*T/N + xi*np.sqrt(v_curr)*Wv_curr # without abs 
+#         S_new = S_curr * np.exp(- v_new**2/2*T/N + v_new*WS_curr)
+#         v_curr = v_new; S_curr = S_new
+#         # Append the results to the arrays of each day's value
+#         v += [v_new]; S += [S_new]
+#         price_path = np.swapaxes(np.array(S),0,1)
+#         vol_path = np.swapaxes(np.array(v),0,1)
+#     return price_path, vol_path
 
 
 # def stimulate_GBM(m,Ktrain,N,T,sigma,S0):
