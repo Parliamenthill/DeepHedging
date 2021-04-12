@@ -21,7 +21,7 @@ def BlackScholes(tau, S, K, sigma, option_type):
 
 import QuantLib as ql
 
-def simulate_Heston(m,Ktrain,N,T,rho,kappa,theta,sigma,S0,v0):
+def simulate_Heston(Ktrain,N,T,rho,kappa,theta,sigma,S0,v0):
     v0 = theta # historical vols for the stock  
 
     day_count = ql.Actual365Fixed()
@@ -149,20 +149,25 @@ def simulate_GBM(m,Ktrain,N,T,sigma,S0, grid_type):
     
 
 def build_network(m, n, d, N):
+    n = m + 15
 # architecture is the same for all networks
     Networks = []
     trainable = True
     for j in range(N):
         inputs = keras.Input(shape=(m,))
         x = inputs
+        x = keras.layers.BatchNormalization()(x)
         for i in range(d):
             if i < d-1:
                 nodes = n
-                layer = keras.layers.Dense(nodes, activation='tanh',trainable=trainable,
+                layer = keras.layers.Dense(nodes, activation='linear',trainable=trainable,
                           kernel_initializer=keras.initializers.RandomNormal(0,1),#kernel_initializer='random_normal',
                           bias_initializer='random_normal',
                           name=str(j) + 'step' + str(i) + 'layer')
                 x = layer(x)
+                x = keras.layers.BatchNormalization()(x)
+                x = tf.nn.relu(x)
+                    
             else:
                 nodes = m
                 layer = keras.layers.Dense(nodes, activation='linear', trainable=trainable,
