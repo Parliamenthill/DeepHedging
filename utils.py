@@ -119,7 +119,7 @@ def simulate_Heston(Ktrain,N,T,rho,kappa,theta,sigma,S0,v0):
 #     return price_path, time_grid
 
 
-def simulate_GBM(m,Ktrain,N,T,sigma,S0, grid_type):
+def simulate_GBM(m,Ktrain,N,T, mu, sigma,S0, grid_type):
     if grid_type == 'equi':
         time_grid = np.linspace(0,T,N+1)
     elif grid_type == 'exp':
@@ -143,7 +143,7 @@ def simulate_GBM(m,Ktrain,N,T,sigma,S0, grid_type):
     BM_path_helper = BM_path_helper * np.sqrt(dt)[:,None] # generate and sum the increment of BM
     BM_path_helper = np.cumsum(BM_path_helper, axis=1) # generate and sum the increment of BM
     BM_path = np.concatenate([np.zeros([Ktrain,1,m]),BM_path_helper],axis = 1) # set initial position of BM be 0 
-    price_path = S0 * np.exp(sigma * BM_path - 0.5 * sigma **2 * time_grid[None,:,None])  # from BM to geometric BM
+    price_path = S0 * np.exp(sigma * BM_path +  (mu - 0.5 * sigma **2) * time_grid[None,:,None])  # from BM to geometric BM
     return price_path, time_grid
     
     
