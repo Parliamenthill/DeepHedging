@@ -166,7 +166,7 @@ def build_network(m, n, d, N):
                           name=str(j) + 'step' + str(i) + 'layer')
                 x = layer(x)
                 x = keras.layers.BatchNormalization()(x)
-                x = tf.nn.relu(x)
+                x = tf.nn.tanh(x)
                     
             else:
                 nodes = m
