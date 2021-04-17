@@ -21,6 +21,50 @@ def BlackScholes(tau, S, K, sigma, option_type):
 
 import QuantLib as ql
 
+
+
+def heston_value(calculation_date, v0, kappa, theta, sigma, rho, spot_price, strike_price, maturity_date ):
+    
+    # option parameters
+    option_type = ql.Option.Call
+    day_count = ql.Actual365Fixed()
+    calendar = ql.UnitedStates()
+
+    # construct the European Option
+    payoff = ql.PlainVanillaPayoff(option_type, strike_price)
+    exercise = ql.EuropeanExercise(maturity_date)
+    european_option = ql.VanillaOption(payoff, exercise)
+    
+    # set the evaluation date
+    ql.Settings.instance().evaluationDate = calculation_date
+
+    # construct the yield curve
+    dividend_rate =  0
+    risk_free_rate = 0
+    flat_ts = ql.YieldTermStructureHandle(
+        ql.FlatForward(calculation_date, risk_free_rate, day_count)
+    )
+    dividend_yield = ql.YieldTermStructureHandle(
+        ql.FlatForward(calculation_date, dividend_rate, day_count)
+    )
+
+    # set the spot price
+    spot_handle = ql.QuoteHandle(
+        ql.SimpleQuote(spot_price)
+    )
+    
+    # calculate option price
+    heston_process = ql.HestonProcess(
+    flat_ts, dividend_yield, spot_handle,
+    v0, kappa, theta, sigma, rho
+    )
+
+    engine = ql.AnalyticHestonEngine(ql.HestonModel(heston_process),0.01, 1000)
+    european_option.setPricingEngine(engine)
+    h_price = european_option.NPV()
+    
+    return h_price
+
 def simulate_Heston(Ktrain,N,T,rho,kappa,theta,sigma,S0,v0):
     v0 = theta # historical vols for the stock  
 
