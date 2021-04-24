@@ -4,21 +4,6 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 keras = tf.keras
 
-def BlackScholes(tau, S, K, sigma, option_type):
-    d1=np.log(S/K)/sigma/np.sqrt(tau)+0.5*sigma*np.sqrt(tau)
-    d2=d1-sigma*np.sqrt(tau)
-    delta=norm.cdf(d1) 
-    gamma=norm.pdf(d1)/(S*sigma*np.sqrt(tau))
-    vega=S*norm.pdf(d1)*np.sqrt(tau)
-    theta=-.5*S*norm.pdf(d1)*sigma/np.sqrt(tau)
-    if option_type == 'eurocall':
-        price = (S*norm.cdf(d1)-K*norm.cdf(d2))
-        hedge_strategy = delta
-    elif option_type == 'eurodigitalcall':
-        price = norm.cdf(d2)
-        hedge_strategy = gamma
-    return price, hedge_strategy
-
 
 def simulate_GBM(m,Ktrain,N,T, mu, sigma,S0, grid_type):
     if grid_type == 'equi':
@@ -31,8 +16,8 @@ def simulate_GBM(m,Ktrain,N,T, mu, sigma,S0, grid_type):
     elif grid_type == 'equi-exp':
         N1 = int(N/4)
         N2 = N - N1
-        T1 = 0.5
-        T2 = 0.5
+        T1 = T/2
+        T2 = T/2
         q = 0.97
         a0 = T2*(q-1)/(q**N2-1)
         time_grid1 = np.linspace(0,T1,N1+1)
@@ -66,7 +51,7 @@ def build_network(m, n, d, N):
                           name=str(j) + 'step' + str(i) + 'layer')
                 x = layer(x)
                 x = keras.layers.BatchNormalization()(x)
-                x = tf.nn.tanh(x)
+                x = tf.nn.relu(x)
                     
             else:
                 nodes = m
@@ -80,6 +65,53 @@ def build_network(m, n, d, N):
     return Networks
 
 
+
+def BlackScholes(tau, S, K, sigma, option_type):
+    d1=np.log(S/K)/sigma/np.sqrt(tau)+0.5*sigma*np.sqrt(tau)
+    d2=d1-sigma*np.sqrt(tau)
+    delta=norm.cdf(d1) 
+    gamma=norm.pdf(d1)/(S*sigma*np.sqrt(tau))
+    vega=S*norm.pdf(d1)*np.sqrt(tau)
+    theta=-.5*S*norm.pdf(d1)*sigma/np.sqrt(tau)
+    if option_type == 'eurocall':
+        price = (S*norm.cdf(d1)-K*norm.cdf(d2))
+        hedge_strategy = delta
+    elif option_type == 'eurodigitalcall':
+        price = norm.cdf(d2)
+        hedge_strategy = gamma
+    return price, hedge_strategy
+
+def BS0(tau, S, K, sigma, option_type):
+    K1 = K[0]
+    K2 = K[1]
+    d1 = (np.log(K1/S) + 0.5*sigma**2*tau) / (sigma*np.sqrt(tau))
+    d2 = (np.log(K2/S) + 0.5*sigma**2*tau) / (sigma*np.sqrt(tau))
+    d1_prime = d1 - sigma*np.sqrt(tau)
+    d2_prime = d2 - sigma*np.sqrt(tau)
+    
+    price = S*(norm.cdf(d2_prime) - norm.cdf(d1_prime)) - K1*(norm.cdf(d2) - norm.cdf(d1))
+    
+    hedge_strategy = (norm.cdf(d2_prime) - norm.cdf(d1_prime)) - (norm.pdf(d2_prime) - norm.pdf(d1_prime))/(sigma*np.sqrt(tau))\
+    + (K1/S)*(norm.pdf(d2) - norm.pdf(d1))/(sigma*np.sqrt(tau))
+    
+    return price, hedge_strategy
+
+def BS0(tau, S, K, sigma, option_type):
+    K1 = K[0]
+    K2 = K[1]
+    d1 = (np.log(K1/S) + 0.5*sigma**2*tau) / (sigma*np.sqrt(tau))
+    d2 = (np.log(K2/S) + 0.5*sigma**2*tau) / (sigma*np.sqrt(tau))
+    d1_prime = d1 - sigma*np.sqrt(tau)
+    d2_prime = d2 - sigma*np.sqrt(tau)
+    
+    price = S*(norm.cdf(d2_prime) - norm.cdf(d1_prime)) - K1*(norm.cdf(d2) - norm.cdf(d1))
+    
+    hedge_strategy = (norm.cdf(d2_prime) - norm.cdf(d1_prime)) - (norm.pdf(d2_prime) - norm.pdf(d1_prime))/(sigma*np.sqrt(tau))\
+    + (K1/S)*(norm.pdf(d2) - norm.pdf(d1))/(sigma*np.sqrt(tau))
+    
+    return price, hedge_strategy
+
+    
 def delta_hedge(price_path,payoff, T,K,sigma,option_type,time_grid):
     price = price_path
     batch, N, m = price.shape
@@ -89,13 +121,19 @@ def delta_hedge(price_path,payoff, T,K,sigma,option_type,time_grid):
     
     hedge_path = np.zeros_like(price)
     option_path = np.zeros_like(price) 
-    premium,_ = BlackScholes(T-time_grid[0], price[:,0,:], K, sigma, option_type)
+    if option_type == 0:
+        premium,_ = BS0(T-time_grid[0], price[:,0,:], K, sigma, option_type)
+    else:
+        premium,_ = BlackScholes(T-time_grid[0], price[:,0,:], K, sigma, option_type)
     
     hedge_path[:,0,:] =  premium
     option_path[:,-1,:] =  payoff
     
     for j in range(N):
-        option_price, strategy = BlackScholes(T-time_grid[j],price[:,j,:],K,sigma,option_type)  
+        if option_type == 0:
+            option_price, strategy = BS0(T-time_grid[j],price[:,j,:],K,sigma,option_type)  
+        else:
+            option_price, strategy = BlackScholes(T-time_grid[j],price[:,j,:],K,sigma,option_type)  
         hedge_path[:,j+1] = hedge_path[:,j] + strategy * price_difference[:,j,:]   
         option_path[:,j,:] =  option_price
     outputs = hedge_path[:,-1] 
