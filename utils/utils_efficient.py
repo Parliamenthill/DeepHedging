@@ -41,7 +41,7 @@ def build_network(m, n, d, N):
     for j in range(N):
         inputs = keras.Input(shape=(m,))
         x = inputs
-        x = keras.layers.BatchNormalization()(x)
+#         x = keras.layers.BatchNormalization()(x)
         for i in range(d):
             if i < d-1:
                 nodes = n
@@ -50,7 +50,7 @@ def build_network(m, n, d, N):
                           bias_initializer='random_normal',
                           name=str(j) + 'step' + str(i) + 'layer')
                 x = layer(x)
-                x = keras.layers.BatchNormalization()(x)
+#                 x = keras.layers.BatchNormalization()(x)
                 x = tf.nn.relu(x)
                     
             else:

@@ -21,8 +21,6 @@ def BlackScholes(tau, S, K, sigma, option_type):
 
 import QuantLib as ql
 
-
-
 def heston_value(calculation_date, v0, kappa, theta, sigma, rho, spot_price, strike_price, maturity_date ):
     
     # option parameters
@@ -193,14 +191,13 @@ def simulate_GBM(m,Ktrain,N,T, mu, sigma,S0, grid_type):
     
 
 def build_network(m, n, d, N):
-    n = m + 15
 # architecture is the same for all networks
     Networks = []
     trainable = True
     for j in range(N):
         inputs = keras.Input(shape=(m,))
         x = inputs
-        x = keras.layers.BatchNormalization()(x)
+#         x = keras.layers.BatchNormalization()(x)
         for i in range(d):
             if i < d-1:
                 nodes = n
@@ -209,8 +206,8 @@ def build_network(m, n, d, N):
                           bias_initializer='random_normal',
                           name=str(j) + 'step' + str(i) + 'layer')
                 x = layer(x)
-                x = keras.layers.BatchNormalization()(x)
-                x = tf.nn.tanh(x)
+#                 x = keras.layers.BatchNormalization()(x)
+                x = tf.nn.relu(x)
                     
             else:
                 nodes = m
