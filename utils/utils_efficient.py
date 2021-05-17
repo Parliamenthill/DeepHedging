@@ -41,11 +41,11 @@ def build_network(m, n, d, N):
     for j in range(N):
         inputs = keras.Input(shape=(m,))
         x = inputs
-#         x = keras.layers.BatchNormalization()(x)
+        x = keras.layers.BatchNormalization()(x)
         for i in range(d):
             if i < d-1:
                 nodes = n
-                layer = keras.layers.Dense(nodes, activation='linear',trainable=trainable,
+                layer = keras.layers.Dense(nodes, activation='relu',trainable=trainable,
                           kernel_initializer=keras.initializers.RandomNormal(0,1),#kernel_initializer='random_normal',
                           bias_initializer='random_normal',
                           name=str(j) + 'step' + str(i) + 'layer')
@@ -73,15 +73,17 @@ def BlackScholes(tau, S, K, sigma, option_type):
     gamma=norm.pdf(d1)/(S*sigma*np.sqrt(tau))
     vega=S*norm.pdf(d1)*np.sqrt(tau)
     theta=-.5*S*norm.pdf(d1)*sigma/np.sqrt(tau)
-    if option_type == 'eurocall':
-        price = (S*norm.cdf(d1)-K*norm.cdf(d2))
-        hedge_strategy = delta
-    elif option_type == 'eurodigitalcall':
+    if option_type == 'eurodigitalcall':
         price = norm.cdf(d2)
         hedge_strategy = gamma
+    else:
+        price = (S*norm.cdf(d1)-K*norm.cdf(d2))
+        hedge_strategy = delta
     return price, hedge_strategy
 
-def BS0(tau, S, K, sigma, option_type):
+
+
+def BS0(tau, S, K, sigma):
     K1 = K[0]
     K2 = K[1]
     d1 = (np.log(K1/S) + 0.5*sigma**2*tau) / (sigma*np.sqrt(tau))
@@ -93,46 +95,84 @@ def BS0(tau, S, K, sigma, option_type):
     + (K1/S)*(norm.pdf(d2) - norm.pdf(d1))/(sigma*np.sqrt(tau))
     return price, hedge_strategy
 
-def BS1(tau, S, K, sigma, option_type):
+def BS1(tau, S, K, sigma):
     K1 = K[0]
     K2 = K[1]
     d1 = np.log(S/K2)/sigma/np.sqrt(tau) + 0.5*sigma*np.sqrt(tau)
     d2 = d1-sigma*np.sqrt(tau)
     price = S*norm.cdf(d1) - K1*norm.cdf(d2)
-    hedge_strategy = norm.cdf(d1) + norm.pdf(d1) - K1/S*norm.pdf(d2)
+    hedge_strategy = norm.cdf(d1) + (norm.pdf(d1) - K1/S*norm.pdf(d2))/(sigma*np.sqrt(tau))
+    return price, hedge_strategy
+
+
+def BSinf(tau, S, K, sigma):
+    K1 = K[0]
+    K2 = K[1]
+    d1 = np.log(S/K2)/sigma/np.sqrt(tau)+0.5*sigma*np.sqrt(tau)
+    d2 = d1-sigma*np.sqrt(tau)
+    price = (S*norm.cdf(d1)-K2*norm.cdf(d2))
+    hedge_strategy = norm.cdf(d1)
     return price, hedge_strategy
 
     
-def delta_hedge(price_path,payoff, T,K,sigma,option_type,time_grid):
+def delta_hedge(price_path,payoff,T,K,sigma,po,time_grid):
     price = price_path
     batch, N, m = price.shape
     N = N - 1 
-#     time_grid = np.linspace(0,T,N+1)
     price_difference = price[:,1:,:] - price[:,:-1,:]  
     
     hedge_path = np.zeros_like(price)
     option_path = np.zeros_like(price) 
-    if option_type == 0:
-        premium,_ = BS0(T-time_grid[0], price[:,0,:], K, sigma, option_type)
-    elif option_type == 1:
-        premium,_ = BS1(T-time_grid[0], price[:,0,:], K, sigma, option_type)
-    else:
-        premium,_ = BlackScholes(T-time_grid[0], price[:,0,:], K, sigma, option_type)
     
+    if po == 0:
+        BS_func = BS0
+    elif po == 1:
+        BS_func = BS1
+    elif po == np.inf:
+        BS_func = BSinf   
+    else:
+        print('ERROR')
+        
+    premium,_ = BS_func(T-time_grid[0], price[:,0,:], K, sigma)
     hedge_path[:,0,:] =  premium
     option_path[:,-1,:] =  payoff
     
     for j in range(N):
-        if option_type == 0:
-            option_price, strategy = BS0(T-time_grid[j],price[:,j,:],K,sigma,option_type)  
-        elif option_type == 1:
-            option_price, strategy = BS1(T-time_grid[j],price[:,j,:],K,sigma,option_type)  
-        else:
-            option_price, strategy = BlackScholes(T-time_grid[j],price[:,j,:],K,sigma,option_type)  
+        option_price, strategy = BS_func(T-time_grid[j],price[:,j,:],K,sigma)  
         hedge_path[:,j+1] = hedge_path[:,j] + strategy * price_difference[:,j,:]   
         option_path[:,j,:] =  option_price
+        
     outputs = hedge_path[:,-1] 
     return outputs, hedge_path , option_path
     
     
-
+def delta_hedge_cost(price_path,payoff,T,K,sigma,po,time_grid):
+    price = price_path
+    batch, N, m = price.shape
+    N = N - 1 
+    price_difference = price[:,1:,:] - price[:,:-1,:]  
+    hedge_path = np.zeros_like(price)
+    option_path = np.zeros_like(price) 
+    if po == 0:
+        BS_func = BS0
+    elif po == 1:
+        BS_func = BS1
+    elif po == np.inf:
+        BS_func = BSinf   
+    else:
+        print('ERROR')
+    premium,_ = BS_func(T-time_grid[0], price[:,0,:], K, sigma)
+    hedge_path[:,0,:] =  premium
+    option_path[:,-1,:] =  payoff
+    STRATEGY = []
+    for j in range(N):
+        option_price, strategy = BS_func(T-time_grid[j],price[:,j,:],K,sigma)  
+        STRATEGY.append(strategy)
+        cost = 0
+        if j > 0: 
+            cost = 0.001*((STRATEGY[j]- STRATEGY[j-1])*price[:,j,:])**2
+        hedge_path[:,j+1] = hedge_path[:,j] + strategy * price_difference[:,j,:] - cost 
+        option_path[:,j,:] =  option_price
+        
+    outputs = hedge_path[:,-1] 
+    return outputs, hedge_path , option_path
